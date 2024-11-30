@@ -36,6 +36,7 @@ The script provides system administrators and IT professionals with an effective
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Azerbaijan Dilində
+
 Bu skript Ali Zeynalli tərəfindən yazılıb və Active Directory istifadəçilərinin ətraflı məlumatlarını əldə etmək və vizuallaşdırmaq üçün istifadə edilir. Əsas funksionallıqları aşağıdakılardır:
 
 Bu PowerShell skripti Active Directory mühitində istifadəçi məlumatlarının ətraflı hesabatını yaradan təkmilləşdirilmiş bir alətdir. Gəlin əsas funksionallığını və iş prinsipini araşdıraq.
