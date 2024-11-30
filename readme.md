@@ -1,4 +1,4 @@
-Bu skript Ali Zeynalli tərəfindən yazılıb və Active Directory istifadəçilərinin ətraflı məlumatlarını əldə etmək və vizuallaşdırmaq üçün istifadə edilir. Əsas funksionallıqları aşağıdakılardır:
+[Bu skript Ali Zeynalli tərəfindən yazılıb və Active Directory istifadəçilərinin ətraflı məlumatlarını əldə etmək və vizuallaşdırmaq üçün istifadə edilir. Əsas funksionallıqları aşağıdakılardır:
 Get-UserNetworkDetails Funksiyası:
 
 İstifadəçinin son daxil olduğu kompüterləri aşkar edir
@@ -370,3 +370,4 @@ $htmlContent += @"
 #>
  
 
+](https://github.com/Ali7Zeynalli/active-directory-user-report-generator.git)
