@@ -1,3 +1,8 @@
+
+![screencapture-file-C-Reports-AD-AD-Users-Comprehensive-Report-2024-11-30-20-01-20-html-2024-11-30-20_01_24](https://github.com/user-attachments/assets/bb23397b-8c4a-4de2-b4f9-02867cc689be)
+![screencapture-file-C-Reports-AD-AD-Users-Comprehensive-Report-2024-11-30-20-01-20-html-2024-11-30-20_01_52](https://github.com/user-attachments/assets/58236e2a-877d-4abf-8c9d-ec73d1155ae7)
+
+
 This script was written by Ali Zeynalli and is used to retrieve and visualize detailed information about Active Directory users. Its main functionalities are as follows:
 PowerShell Script for Comprehensive Active Directory User Reporting: Functionality and Working Principles
 This PowerShell script is an advanced tool for generating detailed user reports in Active Directory environments. Let's explore its core functionality and working principles.
