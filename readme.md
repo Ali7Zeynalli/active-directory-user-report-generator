@@ -71,3 +71,8 @@ Filtrasiya və axtarış imkanları
 Detallı məlumatların dinamik göstərilməsi
 
 Skript, sistem administratorlarına və IT mütəxəssislərinə Active Directory mühitində istifadəçi hesablarının vəziyyətini və təhlükəsizlik parametrlərini effektiv şəkildə izləmək imkanı verir. Yaradılan hesabat, qərar qəbuletmə prosesində və audit məqsədləri üçün dəyərli məlumat mənbəyi kimi istifadə edilə bilər.
+
+
+![2](https://github.com/user-attachments/assets/57b46fe9-6057-42ec-ac1a-941eaaaa9858)
+![1](https://github.com/user-attachments/assets/98e39200-4a6d-458c-9d37-1b2457e2791e)
+
