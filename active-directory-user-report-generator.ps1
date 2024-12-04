@@ -327,185 +327,168 @@ $htmlContent = @"
     <title>Təfərrüatlı Active Directory İstifadəçi Məlumatları</title>
     <meta charset="UTF-8">
     <style>
-        .stat-card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-        }
-        
-            
-                body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background-color: #f0f2f5; 
-                    margin: 0; 
-                    padding: 20px;
-                }
-                .container { 
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    background-color: white; 
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
-                    border-radius: 10px; 
-                    padding: 30px;
-                }
-                h1 { 
-                    color: #1a73e8; 
-                    text-align: center; 
-                    border-bottom: 3px solid #1a73e8; 
-                    padding-bottom: 15px;
-                }
-                .stats-container {
-                    display: flex;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    justify-content: space-between;
-                    gap: 20px;
-                    margin-bottom: 30px;
-                }
-                .stat-card {
-                    background: #f8f9fa;
-                    padding: 10px 15px;
-                    border-radius: 10px;
-                    text-align: center;
-                    width: 23%;
-                    color: #023047;
-                }
-        
-        #userSearch {
-            transition: all 0.3s ease;
-        }
-        
-        #userSearch:focus {
-            width: 400px;
-            border-color: #1a73e8;
-            box-shadow: 0 4px 8px rgba(26, 115, 232, 0.2);
-        }
-        
-        
-        table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        
-        table tr:hover {
-            background-color: #e9f5ff;
-        }
-        
-        
-        
-        
-                .stat-number {
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #1a73e8;
-                }
-                table { 
-                    
-                    width: 100%; 
-                    border-collapse: collapse; 
-                }
-                th, td { 
-                    padding: 12px; 
-                    text-align: left; 
-                    border-bottom: 1px solid #e0e0e0; 
-                }
-                th { 
-                    background-color: #1a73e8; 
-                    color: white; 
-                }
-                .user-row { 
-                    cursor: pointer; 
-                    transition: background-color 0.3s ease;
-                }
-                .user-row:hover { 
-                    background-color: #f1f1f1; 
-                }
-                .user-details { 
-                    display: none; 
-                    background-color: #f9f9f9; 
-                    border-left: 5px solid #1a73e8; 
-                    padding: 20px; 
-                    margin-top: 10px;
-                }
-                .detail-section {
-                    margin-bottom: 15px;
-                    padding: 15px;
-                    background-color: #f4f4f4;
-                    border-radius: 5px;
-                    border: 1px solid #e0e0e0;
-                }
-                .detail-label {
-                    font-weight: bold;
-                    color: #1a73e8;
-                    margin-right: 10px;
-                }
-                .search-container {
-                    display: flex;
-            justify-content: flex-end; 
-                    margin-bottom: 20px;
-                    text-align: center;
-                }
-                #userSearch {
-                    width: 300px;
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                }
-                .status-active {
-                    color: #28a745;
-                    font-weight: bold;
-                }
-                .status-inactive {
-                    color: #dc3545;
-                    font-weight: bold;
-                }
-                .computer-list {
-                    list-style: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .computer-list li {
-                    padding: 8px;
-                    border-bottom: 1px solid #dee2e6;
-                }
-                .computer-list li:last-child {
-                    border-bottom: none;
-                }
-                .detail-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 20px;
-                }
-        
+   /* Ümumi stillər */
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background-color: #f0f2f5;
+  margin: 0;
+  padding: 20px;
+}
 
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 30px;
+}
 
+h1, h3, h4, h5, h6 {
+  color: #1a73e8;
+  margin: 0 0 15px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e0e0e0;
+}
 
+h1 {
+  text-align: center;
+  border-bottom-width: 3px;
+}
 
-        /* Bu hissəni table tr:hover stilindən sonra əlavə edin */
-    .status-warning {
-        color: #ffc107;
-        font-weight: bold;
-    }
-    .status-error {
-        color: #dc3545;
-        font-weight: bold;
-    }
-    .status-success {
-        color: #28a745;
-        font-weight: bold;
-    }
-    .status-info {
-        color: #17a2b8;
-        font-weight: bold;
-    }
+/* Statistika və axtarış */
+.stats-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 30px;
+}
 
+.stat-card {
+  background: #f8f9fa;
+  padding: 10px 15px;
+  border-radius: 10px;
+  text-align: center;
+  width: 23%;
+  color: #023047;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
 
+.stat-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
 
+.stat-number {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1a73e8;
+}
 
+.search-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
 
+#userSearch {
+  width: 300px;
+  padding: 10px;
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
 
+#userSearch:focus {
+  width: 400px;
+  border-color: #1a73e8;
+  box-shadow: 0 4px 8px rgba(26, 115, 232, 0.2);
+}
 
+/* Cədvəl */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
 
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
 
+th {
+  background-color: #1a73e8;
+  color: #ffffff;
+}
 
-        
+table tr:nth-child(even), table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.user-row {
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.user-row:hover {
+  background-color: #e9f5ff;
+}
+
+table td:first-child {
+  text-align: center;
+  width: 50px;
+  font-weight: bold;
+}
+
+/* İstifadəçi detalları */
+.user-details {
+  display: none;
+  background-color: #ffffff;
+  border-left: 5px solid #1a73e8;
+  padding: 20px;
+  margin: 10px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.detail-section {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 15px;
+}
+
+.detail-label {
+  font-weight: bold;
+  color: #1a73e8;
+  margin-right: 10px;
+}
+
+.detail-section p {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+/* Status */
+.status-active { color: #28a745; }
+.status-inactive { color: #dc3545; }
+.status-warning { color: #ffc107; }
+.status-error { color: #dc3545; }
+.status-success { color: #28a745; }
+.status-info { color: #17a2b8; }
+
+.status-active, .status-inactive, .status-warning,
+.status-error, .status-success, .status-info {
+  font-weight: bold;
+}
     </style>
     <script>
         function toggleUserDetails(userId) {
@@ -567,6 +550,7 @@ $htmlContent = @"
         
         <table>
             <tr>
+                <th>No</th>
                 <th>Ad</th>
                 <th>Email</th>
                 <th>Şöbə</th>
@@ -582,6 +566,10 @@ $activeUsers = 0
 $deactivatedUsers = 0
 $expiredPasswords = 0
 $noPasswords = 0
+$userNumber = 0
+
+
+
 
 # Active Directory-dən istifadəçi məlumatlarını alırıq
 $users = Get-ADUser -Filter * -Property * | Sort-Object DisplayName
@@ -589,6 +577,8 @@ $users = Get-ADUser -Filter * -Property * | Sort-Object DisplayName
 # Hər bir istifadəçi üçün məlumatları əlavə edirik
 foreach ($user in $users) {
     $totalUsers++
+    $userNumber++
+
     if ($user.Enabled) { $activeUsers++ } else { $deactivatedUsers++ }
  if (Test-PasswordExpired $user) {
     $expiredPasswords++
@@ -679,7 +669,9 @@ if ($currentProgress % 10 -eq 0) {
     
     # HTML cədvəlinə istifadəçi məlumatlarını əlavə edirik
     $htmlContent += @"
-        <tr class="user-row" onclick="toggleUserDetails('$userId')" data-name="$($user.DisplayName)">
+      
+       <tr class="user-row" onclick="toggleUserDetails('$userId')" data-name="$($user.DisplayName)">
+        <td style="text-align: center; width: 50px; font-weight: bold;">$userNumber</td>
             <td>$($user.DisplayName)</td>
             <td>$($user.EmailAddress)</td>
             <td>$($user.Department)</td>
@@ -689,11 +681,11 @@ if ($currentProgress % 10 -eq 0) {
             
         </tr>
         <tr>
-            <td colspan="5">
+            <td colspan="7">
                 <div id="$userId" class="user-details">
                     <div class="detail-grid">
                         <div class="detail-section">
-                            <h3>$($user.DisplayName) - Əsas Məlumatlar</h3>
+                            <h3>$($user.DisplayName) Əsas Məlumatlar</h3>
                             <p><span class="detail-label">İstifadəçi Adı:</span> $($user.SamAccountName)</p>
                             <p><span class="detail-label">Email:</span> $($user.EmailAddress)</p>
                             <p><span class="detail-label">Tam Ad:</span> $($user.CN)</p>
@@ -726,8 +718,8 @@ if ($currentProgress % 10 -eq 0) {
                             <p><span class="detail-label">Bütün Giriş Etdiyi Kompüterlər:</span> $($networkDetails.AllComputers)</p>
                             <p><span class="detail-label">Paylaşılan Qovluqlar:</span> $($networkDetails.SharedFolders)</p>
                             <p><span class="detail-label">Üzv Olduğu Qruplar:</span> $groupNamesList</p>
-                            <h4>IP Ünvanları</h4>
-                            <p><span class="detail-label">Son İstifadə Edilən IP Ünvanları:</span> $ipAddresses</p>
+                            
+                            <p><span class="detail-label">IP Ünvanları:</span> $ipAddresses</p>
                         </div>
 
                      
