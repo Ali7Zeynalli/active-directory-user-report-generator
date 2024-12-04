@@ -73,6 +73,6 @@ Detallı məlumatların dinamik göstərilməsi
 Skript, sistem administratorlarına və IT mütəxəssislərinə Active Directory mühitində istifadəçi hesablarının vəziyyətini və təhlükəsizlik parametrlərini effektiv şəkildə izləmək imkanı verir. Yaradılan hesabat, qərar qəbuletmə prosesində və audit məqsədləri üçün dəyərli məlumat mənbəyi kimi istifadə edilə bilər.
 
 
-![2](https://github.com/user-attachments/assets/57b46fe9-6057-42ec-ac1a-941eaaaa9858)
-![1](https://github.com/user-attachments/assets/98e39200-4a6d-458c-9d37-1b2457e2791e)
+![screencapture-file-C-Reports-AD-AD-Users-Comprehensive-Report-2024-12-04-20-18-42-html-2024-12-04-20_20_08](https://github.com/user-attachments/assets/07da7218-8d8c-4a78-9e78-3fb3c128f861)
+![screencapture-file-C-Reports-AD-AD-Users-Comprehensive-Report-2024-12-04-20-18-42-html-2024-12-04-20_19_43](https://github.com/user-attachments/assets/1b2370ee-d9b6-40ff-96f6-73e4d4ebebbc)
 
