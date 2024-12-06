@@ -1,22 +1,22 @@
-#1 Active Directory modulunu import edirik
+#1 Import the Active Directory module
 Import-Module ActiveDirectory
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#2 Timer və global dəyişənlər
-#Skriptin ümumi icra müddətini ölçmək üçün istifadə olunur.
+#2 Timer and global variables
+#Used to measure the total execution time of the script.
 $totalTimer = [System.Diagnostics.Stopwatch]::StartNew()
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#3 Global keş və StringBuilder
-<# $script:computerAccessCache: Kompüter giriş məlumatlarını saxlamaq üçün keş.
-$script:groupMembershipCache: Qrup üzvlüyü məlumatlarını saxlamaq üçün keş.
-$script:htmlBuilder: HTML çıxışını yaratmaq üçün istifadə olunacaq StringBuilder obyekti. #>
+#3 Global cache and StringBuilder
+<# $script:computerAccessCache: Cache for storing computer access information.
+$script:groupMembershipCache: Cache for storing group membership information.
+$script:htmlBuilder: StringBuilder object to be used for creating HTML output. #>
 $script:computerAccessCache = @{}
 $script:groupMembershipCache = @{}
 $script:htmlBuilder = New-Object System.Text.StringBuilder
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#4 Active Directory-dən istifadəçi məlumatlarını əvvəlcədən yükləyirik
-<# $requiredProperties: İstifadəçilərdən əldə etmək istədiyimiz bütün xüsusiyyətləri sadalayırıq.
-$users: Bütün Active Directory istifadəçilərini və onların müəyyən edilmiş xüsusiyyətlərini 
-əldə edirik. Nəticələr DisplayName-ə görə sıralanır. #>
+#4 Preload user information from Active Directory
+<# $requiredProperties: List all the properties we want to retrieve from users.
+$users: Retrieve all Active Directory users and their specified properties.
+Results are sorted by DisplayName. #>
 $requiredProperties = @(
     'DisplayName', 'EmailAddress', 'Department', 'LastLogonDate',
     'Enabled', 'PasswordExpired', 'PasswordLastSet', 'PasswordNeverExpires',
@@ -27,32 +27,32 @@ $requiredProperties = @(
 $users = Get-ADUser -Filter * -Properties $requiredProperties | Sort-Object DisplayName
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #5 Progress bar
-<# $progressParams: Progress bar-ın görünüşünü və məzmununu təyin edən parametrlər.
-Write-Progress: PowerShell-də progress bar-ı göstərmək üçün istifadə olunan komanda.#>
+<# $progressParams: Parameters to define the appearance and content of the progress bar.
+Write-Progress: Command used to display a progress bar in PowerShell. #>
 $progressParams = @{
-    Activity = "Active Directory hesabati yaradilir"
-    Status = "Istifadeci melumatlari yigilir"
+    Activity = "Creating Active Directory report"
+    Status = "Gathering user information"
     PercentComplete = 0
 }
 Write-Progress @progressParams
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#6 Recovery üçün temp fayl
-<# $tempFile: Müvəqqəti bir fayl yaradırıq ki, skript yarıda kəsilsə, proqresi bərpa edə bilək.
-$currentProgress: Cari proqresi izləmək üçün sayğac. #>
+#6 Temporary file for recovery
+<# $tempFile: Create a temporary file so that we can restore the progress if the script is interrupted.
+$currentProgress: Counter to track the current progress. #>
 $tempFile = [System.IO.Path]::GetTempFileName()
 $currentProgress = 0
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#6 Keşləmə funksiyası - İstifadəçi adına əsasən kompüter məlumatlarını alır və keşləyir
-<# Əgər istifadəçi adı boşdursa, xəbərdarlıq verir və null qaytarır.
-Əgər istifadəçi üçün kompüter məlumatları artıq keşdə varsa, birbaşa onu qaytarır.
-Əks halda, Active Directory-dən kompüter məlumatlarını alır və keşdə saxlayır.
-Xəta baş verərsə, xəbərdarlıq verir və null qaytarır.
-Bu funksiya, təkrarlanan sorğuları azaltmaq və performansı artırmaq üçün istifadə olunur. #>
+#6 Caching function - Retrieves computer information based on the user name and caches it
+<# If the user name is empty, it displays a warning and returns null.
+If the computer information for the user is already in the cache, it directly returns it.
+Otherwise, it retrieves the computer information from Active Directory and stores it in the cache.
+If an error occurs, it displays a warning and returns null.
+This function is used to reduce repeated queries and improve performance. #>
 function Get-CachedADComputer {
     param([string]$userName)    
     
     if ([string]::IsNullOrEmpty($userName)) {
-        Write-Warning "Istifadeci adi boshdur"
+        Write-Warning "User name is empty"
         return $null
     }
     
@@ -61,60 +61,60 @@ function Get-CachedADComputer {
             $script:computerAccessCache[$userName] = Get-ADComputer -LDAPFilter "(&(LastLogonUserName=$userName))"
         }
         catch {
-            Write-Warning "Komputer melumatlari alinarken xeta: $_"
+            Write-Warning "Error retrieving computer information:  $_"
             $script:computerAccessCache[$userName] = $null
         }
     }    
     return $script:computerAccessCache[$userName]
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#7 Köməkçi funksiya - İstifadəçinin şəbəkə əlaqələrini müəyyən etmək üçün
-<# stifadəçinin şəbəkə detallarını əldə edir.
-İstifadəçinin giriş etdiyi kompüterləri və son 5 giriş tarixini alır.
-İstifadəçinin paylaşdığı qovluqları tapır.
-Bütün məlumatları keşləyir ki, təkrar sorğular zamanı performans artsın.
-Xətalar baş verərsə, uyğun xəbərdarlıqlar verir və standart məlumatlar qaytarır.#>
+#7 Helper function - Determine the user's network connections
+<# Retrieves the user's network details.
+Obtains the computers the user has logged in to and the last 5 login dates.
+Finds the shared folders the user has access to.
+Caches all the information to improve performance for repeated queries.
+If errors occur, it displays appropriate warnings and returns default data. #>
 function Get-UserNetworkDetails {
     param([string]$userName)
     
     if ([string]::IsNullOrEmpty($userName)) {
-        Write-Warning "İstifadəçi adı boşdur"
+        Write-Warning "User name is empty"
         return @{
             LastComputers = @()
-            AllComputers = "İstifadəçi adı təyin edilməyib"
-            SharedFolders = "İstifadəçi adı təyin edilməyib"
+            AllComputers = "User name not specified"
+            SharedFolders = "User name not specified"
         }
     }
     
     try {
 #///////////////////////////////////////
-        #7.1 Keşdən kompüter məlumatlarını almağa çalışırıq
+        #7.1 7.1 Attempt to retrieve computer information from the cache
         $computerAccess = $null
         if ($script:computerAccessCache.ContainsKey($userName)) {
             $computerAccess = $script:computerAccessCache[$userName]
         } else {
             #///////////////////////////////////////
-            #7.2 Keşdə yoxdursa, AD-dən alırıq
+            #7.2 If not in the cache, retrieve from AD
             $computerAccess = Get-ADComputer -LDAPFilter "(&(LastLogonUserName=$userName))" -Properties Name,LastLogonTimeStamp |
                 Sort-Object LastLogonTimeStamp -Descending
                 #///////////////////////////////////////
-            #7.3 Keşə əlavə edirik
+            #7.3 Add to the cache
             $script:computerAccessCache[$userName] = $computerAccess
         }
 #///////////////////////////////////////
-        #7.4 Son 5 kompüteri alırıq
+        #7.4 Get the last 5 computers
         $last5Computers = $computerAccess | Select-Object -First 5 | ForEach-Object {
             @{
                 Name = $_.Name
                 LastLogon = if ($_.LastLogonTimeStamp) {
                     [DateTime]::FromFileTime($_.LastLogonTimeStamp).ToString("dd.MM.yyyy HH:mm")
                 } else {
-                    "Bilinmir"
+                    "Unknown"
                 }
             }
         }
 #///////////////////////////////////////
-        #7.5 Paylaşılan qovluqları keşləyirik
+        # 7.5 Cache the shared folder information
         $sharedFolderKey = "shared_$userName"
         $sharedFolderAccess = $null
         if ($script:groupMembershipCache.ContainsKey($sharedFolderKey)) {
@@ -126,27 +126,26 @@ function Get-UserNetworkDetails {
 
         return @{
             LastComputers = $last5Computers
-            AllComputers = if ($computerAccess) { ($computerAccess.Name -join ", ") } else { "Kompüter tapılmadı" }
-            SharedFolders = if ($sharedFolderAccess) { ($sharedFolderAccess.Name -join ", ") } else { "Paylaşım tapılmadı" }
+            AllComputers = if ($computerAccess) { ($computerAccess.Name -join ", ") } else { "No computers found" }
+            SharedFolders = if ($sharedFolderAccess) { ($sharedFolderAccess.Name -join ", ") } else { "No shared folders found" }
         }
     }
     catch {
-        Write-Warning "Şəbəkə məlumatları alınarkən xəta: $_"
+        Write-Warning "Error retrieving network information: $_"
         return @{
             LastComputers = @()
-            AllComputers = "Məlumat alınmadı: $($_.Exception.Message)"
-            SharedFolders = "Məlumat alınmadı: $($_.Exception.Message)"
+            AllComputers = "Data not retrieved: $($_.Exception.Message)"
+            SharedFolders = "Data not retrieved: $($_.Exception.Message)"
         }
     }
 }   
- 
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#8 İstifadəçinin IP ünvanlarını almaq üçün
-<# Verilmiş istifadəçi adına görə Windows Təhlükəsizlik Jurnalından (Security Log) giriş hadisələrini (Event ID 4624) axtarır.
-Tapılan hadisələrdən istifadəçinin giriş etdiyi bütün unikal IP ünvanlarını çıxarır.
-Əgər istifadəçi adı boşdursa və ya xəta baş verərsə, müvafiq xəbərdarlıq mesajı qaytarır.
-Tapılan IP ünvanlarını vergüllə ayrılmış siyahı şəklində qaytarır.
-Bu funksiya, istifadəçinin hansı IP ünvanlarından sistemə daxil olduğunu izləməyə imkan verir,#>
+#8 Get the user's IP addresses
+<# Searches for login events (Event ID 4624) in the Windows Security Log based on the given user name.
+Extracts all unique IP addresses the user has logged in from.
+If the user name is empty or an error occurs, it returns an appropriate warning message.
+Returns the list of IP addresses separated by commas.
+This function allows tracking the IP addresses the user has logged in from. #>
 function Get-UserIPAddresses {
     param([string]$userName)
     
@@ -174,54 +173,54 @@ function Get-UserIPAddresses {
         return ($ipAddresses.Keys -join ", ")
     }
     catch {
-        Write-Warning "IP ünvanları alınarkən xəta: $_"
-        return "Məlumat alınmadı"
+        Write-Warning "Error retrieving IP addresses: $_"
+        return "Data not retrieved"
     }
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#9 Şifrə statusunu yoxlayan funksiya
-<# İstifadəçinin şifrə statusunu yoxlayır və müvafiq məlumatları qaytarır.
-Əgər istifadəçi məlumatları yoxdursa və ya şifrə təyin edilməyibsə, müvafiq xəbərdarlıq qaytarır.
-Şifrənin heç vaxt bitməyəcəyini yoxlayır.
-Domain səviyyəsində şifrə siyasətini yoxlayır.
-Şifrənin nə vaxt bitəcəyini hesablayır və müvafiq status qaytarır.
-Hər bir status üçün HTML-də istifadə olunacaq CSS sinifini də təyin edir.
-Bu funksiya, hər bir istifadəçinin şifrə vəziyyətini vizual olaraq göstərmək üçün istifadə olunur və 
-administratorlara şifrə idarəetməsində kömək edir.#>
+#9 Function to check password status
+<# Checks the user's password status and returns the corresponding information.
+If the user information is not available or the password is not set, it returns an appropriate warning.
+Checks if the password will never expire.
+Checks the domain-level password policy.
+Calculates when the password will expire and returns the appropriate status.
+Also defines the CSS class to be used for each status in HTML.
+This function is used to visually show the password status of each user and
+helps administrators with password management. #>
 function Get-PasswordStatus {
     param($user)
     
     if ($null -eq $user) {
         return @{
-            Status = "Məlumat yoxdur"
+            Status = "No data"
             Class = "status-warning"
-            Detail = "İstifadəçi məlumatları əldə edilə bilmədi"
+            Detail = "Could not retrieve user information"
         }
     }
     
     if (-not $user.PasswordLastSet) {
         return @{
-            Status = "Şifrə Təyin edilməyib"
+            Status = "Password Not Set"
             Class = "status-warning"
-            Detail = "Şifrə heç vaxt təyin edilməyib"
+            Detail = "Password has never been set"
         }
     }
 
     try {
         if ($user.PasswordNeverExpires) {
             return @{
-                Status = "Heç vaxt bitmir"
+                Status = "Never Expires"
                 Class = "status-info"
-                Detail = "Şifrə heç vaxt bitmır. Son dəyişilmə: $($user.PasswordLastSet)"
+                Detail = "Password never expires. Last changed: $($user.PasswordLastSet)"
             }
         }
 
         $maxPasswordAge = (Get-ADDefaultDomainPasswordPolicy).MaxPasswordAge.Days
         if ($maxPasswordAge -eq 0) {
             return @{
-                Status = "Müddət təyin edilməyib"
+                Status = "No Expiration Set"
                 Class = "status-info"
-                Detail = "Domain səviyyəsində şifrə müddəti təyin edilməyib"
+                Detail = "No password expiration policy set at the domain level"
             }
         }
 
@@ -231,37 +230,38 @@ function Get-PasswordStatus {
 
         if ($daysUntilExpiry -lt 0) {
             return @{
-                Status = "Müddəti bitib"
+                Status = "Expired"
                 Class = "status-error"
-                Detail = "Şifrənin müddəti $($daysUntilExpiry * -1) gün əvvəl bitib"
+                Detail = "Password expired $($daysUntilExpiry * -1) days ago"
             }
         }
         else {
             return @{
-                Status = "Aktiv ($daysUntilExpiry gün qalıb)"
+                Status = "Active ($daysUntilExpiry days remaining)"
                 Class = "status-success"
-                Detail = "Şifrə aktiv. Son dəyişilmə: $($user.PasswordLastSet)"
+                Detail = "Password is active. Last changed: $($user.PasswordLastSet)"
             }
         }
     }
     catch {
-        Write-Warning "Şifrə statusu yoxlanılarkən xəta: $_"
+        Write-Warning "Error checking password status: $_"
         return @{
-            Status = "Xəta"
+            Status = "Error"
             Class = "status-error"
-            Detail = "Şifrə statusu yoxlanılarkən xəta baş verdi"
+            Detail = "Error occurred while checking password status"
         }
     }
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#10 test paswod ucun (Test-PasswordExpired funksiyası)
-<#İstifadəçinin şifrəsinin müddətinin bitib-bitmədiyini yoxlayır.
-Əgər şifrə heç vaxt təyin edilməyibsə və ya heç vaxt bitmırsə, false qaytarır.
-Domain səviyyəsində şifrə siyasətini yoxlayır və maksimum şifrə müddətini alır.
-Şifrənin yaşını hesablayır və maksimum müddətlə müqayisə edir.
-Əgər şifrənin yaşı maksimum müddətdən böyükdürsə, true qaytarır (yəni şifrənin müddəti bitib).
-Xəta baş verərsə, xəbərdarlıq verir və false qaytarır.Bu funksiya, statistika məqsədləri üçün istifadə olunur 
-və şifrəsi bitmiş hesabların sayını müəyyən etməyə kömək edir.#>
+#10 Test password expiration (Test-PasswordExpired function)
+<#Checks if the user's password has expired.
+If the password has never been set or never expires, it returns false.
+Checks the domain-level password policy and retrieves the maximum password age.
+Calculates the age of the password and compares it to the maximum age.
+If the password age is greater than the maximum age, it returns true (i.e., the password has expired).
+If an error occurs, it displays a warning and returns false.
+This function is used for statistical purposes
+and helps determine the number of accounts with expired passwords.#>
 function Test-PasswordExpired {
     param($user)
     
@@ -276,25 +276,25 @@ function Test-PasswordExpired {
         return $passwordAge -gt $maxPasswordAge
     }
     catch {
-        Write-Warning "Şifrə müddətini yoxlayarkən xəta: $_"
-        return $false
+        Write-Warning "Error checking password expiration: $_"
+    return $false
     }
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#11 Batch processing konfiqurasiyası
-<#İstifadəçiləri 50-lik qruplara bölür. Hər qrup üçün bir batch obyekti yaradır.
-Bu, böyük sayda istifadəçi olduqda emal prosesini daha effektiv edir.#>
+#11 Batch processing configuration
+<#Splits the users into groups of 50. Creates a batch object for each group.
+This makes the processing more efficient when there are a large number of users.#>
 $batchSize = 50
 $userBatches = for ($i = 0; $i -lt $users.Count; $i += $batchSize) {
-    @{
-        Users = $users[$i..([Math]::Min($i + $batchSize - 1, $users.Count - 1))]
-        BatchNumber = [Math]::Floor($i / $batchSize)
-    }
+@{
+Users = $users[$i..([Math]::Min($i + $batchSize - 1, $users.Count - 1))]
+BatchNumber = [Math]::Floor($i / $batchSize)
+}
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#12 Users array-ni parallel emal etmək üçün
-<#Sistemdəki prosessor sayına əsasən maksimum thread sayını müəyyən edir.
-Runspace pool yaradır ki, paralel emal mümkün olsun.Bu, skriptin performansını əhəmiyyətli dərəcədə artırır.#>
+#12 Parallel processing of the users array
+<#Determines the maximum number of threads based on the number of processors in the system.
+Creates a runspace pool to enable parallel processing. This significantly improves the script's performance.#>
 $maxThreads = [int]$env:NUMBER_OF_PROCESSORS
 $runspacePool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
 $runspacePool.Open()
@@ -302,7 +302,7 @@ $jobs = @()
 foreach ($user in $users) {
     $powershell = [powershell]::Create().AddScript({
         param($user, $networkDetails, $ipAddresses)
-        # User məlumatlarının emalı
+# Process user information
     }).AddArgument($user).AddArgument($networkDetails).AddArgument($ipAddresses)
     $powershell.RunspacePool = $runspacePool
     $jobs += @{
@@ -311,17 +311,17 @@ foreach ($user in $users) {
     }
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#13  HTML strukturu və başlıq
-<#HTML sənədinin başlanğıcını yaradır.
-CSS stilləri və JavaScript funksiyalarını əlavə edir.
-Hesabatın başlığını və əsas strukturunu formalaşdırır.#>
+#13. HTML structure and header
+<# Creates the beginning of the HTML document.
+Adds CSS styles and JavaScript functions.
+Formulates the report title and main structure. #>
 $htmlContent = @"
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Teferruatli Active Directory Istifadeci Melumatlari</title>
+    <title>Detailed Active Directory User Information</title>
     <meta charset="UTF-8">
-    <style>
+     <style>
   /* 13.1 Ümumi stillər */
 body {
   font-family: 'Segoe UI', Arial, sans-serif;
@@ -487,7 +487,7 @@ table td:first-child {
 }
     </style>
 <script>
-//13.7 Tarix formatını əldə etmək üçün funksiya
+//13.7 Function to get the formatted date
 function getFormattedDate() {
             const now = new Date();
             return now.toISOString().slice(0, 10) + '_' +
@@ -495,7 +495,7 @@ function getFormattedDate() {
                 now.getMinutes().toString().padStart(2, '0');
         }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-//13.8 İstifadəçi detallarını göstərmək/gizlətmək üçün funksiya
+//13.8 Function to show/hide user details
         function toggleUserDetails(userId) {
             const details = document.getElementById(userId);
             if (details) {
@@ -503,7 +503,7 @@ function getFormattedDate() {
             }
         }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-//13.9 İstifadəçiləri axtarmaq üçün funksiya
+//13.9 Function to search users
         function searchUsers() {
             const searchText = document.getElementById('userSearch').value.toLowerCase();
             document.querySelectorAll('.user-row').forEach(row => {
@@ -515,70 +515,62 @@ function getFormattedDate() {
             });
         }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-//13.10 Funksiyaları qlobal miqyasda əlçatan etmək
+//13.10 Make the functions globally accessible
         window.toggleUserDetails = toggleUserDetails;
         window.searchUsers = searchUsers;
 </script>
 </head>
 <body>
-                   
-    <!--Bu struktur, Active Directory-dəki istifadəçilər haqqında ətraflı məlumatları göstərmək, 
-    statistika təqdim etmək və istifadəçiləri axtarmaq üçün nəzərdə tutulub. JavaScript funksiyaları
-    ilə birlikdə, bu interaktiv və informativ bir hesabat təşkil edir  --> 
+<!--This structure is designed to display detailed information about users in Active Directory, 
+provide statistics, and enable user search. Along with the JavaScript functions,
+this creates an interactive and informative report -->
 
-                        <!--Başlıq --> 
-            <h1>Teferruatli Active Directory Istifadeci Melumatlari</h1>       
+           <!-- leaving empty space at the top --> 
+        <h1></h1>     
 
-                    <!-- Statistika bölməsi: --> 
-
-           <div class="stats-container">
-            <div class="stat-card" style="background: #bde0fe;">
-                <div class="stat-number" id="totalUsers">0</div>
-                <div>Umumi Istifadeciler</div>
-            </div>
-                                
-            <div class="stat-card" style="background: #a2d2ff;">
-                <div class="stat-number" id="activeUsers">0</div>
-                <div>Aktiv Istifadeciler</div>
-            </div>
-                               
-            <div class="stat-card" style="background: #cdb4db;">
-                <div class="stat-number" id="deactivatedUsers">0</div>
-                <div>Deaktiv Hesablar</div>
-            </div>
-                                
-            <div class="stat-card" style="background: #ffc8dd;">
-                <div class="stat-number" id="expiredPasswords">0</div>
-                <div>Shifresi Bitmish Hesablar</div>
-            </div>
-                                
-            <div class="stat-card" style="background: #ffc8dd;">
-                <div class="stat-number" id="noPasswords">0</div>
-                <div>Shifresi Teyin Olmayanlar</div>
-            </div>
+               <div class="stats-container">
+        <div class="stat-card" style="background: #bde0fe;">
+            <div class="stat-number" id="totalUsers">0</div>
+            <div>Total Users</div>
+        </div>
+        <div class="stat-card" style="background: #a2d2ff;">
+            <div class="stat-number" id="activeUsers">0</div>
+            <div>Active Users</div>
+        </div>
+        <div class="stat-card" style="background: #cdb4db;">
+            <div class="stat-number" id="deactivatedUsers">0</div>
+            <div>Deactivated Accounts</div>
+        </div>
+        <div class="stat-card" style="background: #ffc8dd;">
+            <div class="stat-number" id="expiredPasswords">0</div>
+            <div>Expired Passwords</div>
+        </div>
+        <div class="stat-card" style="background: #ffc8dd;">
+            <div class="stat-number" id="noPasswords">0</div>
+            <div>No Passwords Set</div>
+        </div>
     </div>
-                                    
-                                    <!--Axtarış bölməsi--> 
-            <div class="search-container">
-            <input type="text" id="userSearch" placeholder="Istifadeci axtar..." oninput="searchUsers()">
-            </div>
-                                    
-                                    <!--Cədvəl başlığı --> 
-            <table>
-            <tr>
-                <th>No</th>
-                <th>Ad</th>
-                <th>Email</th>
-                <th>Shobe</th>
-                <th>Son Girish</th>
-                <th>Status</th>
-                <th>Shifre Statusu</th> 
-            </tr>
+
+    <div class="search-container">
+        <input type="text" id="userSearch" placeholder="Search users..." oninput="searchUsers()">
+    </div>
+    
+    <table>
+        <tr>
+            <th>No</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Last Logon</th>
+            <th>Status</th>
+            <th>Password Status</th> 
+        </tr>
+
 "@
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#14 Statistika dəyişənləri
-<#Bu dəyişənlər hesabatın əvvəlində göstəriləcək ümumi statistika 
-üçün istifadə olunur. Hər bir istifadəçi emal edildikdə bu dəyişənlər yenilənəcək.#>
+#14. Statistics variables
+<# These variables are used to display the overall statistics
+at the beginning of the report. They will be updated as each user is processed. #>
 $totalUsers = 0
 $activeUsers = 0
 $deactivatedUsers = 0
@@ -586,99 +578,100 @@ $expiredPasswords = 0
 $noPasswords = 0
 $userNumber = 0
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#15 Active Directory-dən istifadəçi məlumatlarını alırıq
+#15 Retrieve user information from Active Directory
 $users = Get-ADUser -Filter * -Property * | Sort-Object DisplayName
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#16 Hər bir istifadəçi üçün məlumatları əlavə edirik  (burdan baslayir sonda 16 bitir yazilacaq)
-<#Bu hissə hər bir istifadəçi üçün: Statistika dəyişənlərini yeniləyir.
-İstifadəçinin bütün lazımi məlumatlarını toplayır. Şəbəkə detallarını və IP ünvanlarını əldə edir.
-İstifadəçinin üzv olduğu qrupları tapır. Hesab statusunu və şifrə vəziyyətini müəyyən edir.
-Bütün bu məlumatları HTML formatında hazırlayır.
-Hər 10 istifadəçidən bir progress bar-ı yeniləyir və müvəqqəti faylda proqresi saxlayır.
-Bu, skriptin əsas işləyən hissəsidir və bütün məlumatları toplayıb hesabat üçün hazırlayır.#>
+#16 Add information for each user (starts here and ends with #16)
+<#This section: Updates the statistics variables for each user.
+Gathers all the necessary information for the user. Obtains network details and IP addresses.
+Finds the groups the user is a member of. Determines the account status and password status.
+Prepares all this information in HTML format.
+Updates the progress bar every 10 users and saves the progress in a temporary file.
+This is the main working part of the script that collects all the information and prepares it for the report.#>
 foreach ($user in $users) {
     $totalUsers++
     $userNumber++
     if ($user.Enabled) { $activeUsers++ } else { $deactivatedUsers++ }
  if (Test-PasswordExpired $user) {
     $expiredPasswords++
-    Write-Warning "Şifrəsi bitmiş hesab tapıldı: $($user.SamAccountName)"
+    Write-Warning "Account with expired password found: $($user.SamAccountName)"
 }
     if (-not $user.PasswordLastSet) { $noPasswords++ } 
 #//////////////////////////////////////
-    #16.1 Əsas istifadəçi məlumatları
-    $userName = $user.SamAccountName
-    $userId = $user.DistinguishedName.Replace(',', '_').Replace('=', '_')
+#16.1 Main user information
+$userName = $user.SamAccountName
+$userId = $user.DistinguishedName.Replace(',', '').Replace('=', '')
 #//////////////////////////////////////
-    #16.2 Son giriş tarixi
-    $lastLogonDate = if ($user.LastLogonDate) { 
-        $logonDiff = (Get-Date) - $user.LastLogonDate
-        if ($logonDiff.Days -eq 0) { "Bu gün" }
-        elseif ($logonDiff.Days -eq 1) { "Dünən" }
-        else { "$($logonDiff.Days) gün əvvəl" }
-    } else { "Heç vaxt daxil olmayıb" }
+#16.2 Last login date
+$lastLogonDate = if ($user.LastLogonDate) { 
+    $logonDiff = (Get-Date) - $user.LastLogonDate
+    if ($logonDiff.Days -eq 0) { "Today" }
+    elseif ($logonDiff.Days -eq 1) { "Yesterday" }
+    else { "$($logonDiff.Days) days ago" }
+} else { "Never logged in" }
 #//////////////////////////////////////
-    #16.3 Şəbəkə detalları
-    $networkDetails = Get-UserNetworkDetails -userName $userName
+#16.3 Network details
+$networkDetails = Get-UserNetworkDetails -userName $userName
 #//////////////////////////////////////
-    #16.4 IP ünvanları
-    $ipAddresses = Get-UserIPAddresses -userName $userName
+#16.4 IP addresses
+$ipAddresses = Get-UserIPAddresses -userName $userName
 #//////////////////////////////////////
-    #16.5 Qrupları toplayırıq
-    $userGroups = $user.MemberOf | ForEach-Object {
-        try {
-            $groupName = (Get-ADGroup $_).Name
-            $groupName
-        } catch {
-            $null
-        }
-    } | Where-Object { $_ -ne $null }
-#//////////////////////////////////////
-    #16.6 Qrup adlarını siyahıya çeviririk
-    $groupNamesList = $userGroups -join ", "
-#//////////////////////////////////////
-    #16.7 Organizasiya vahidini (OU) alırıq
-    $organizationalUnit = ($user.DistinguishedName -split ",OU=")[1..$($user.DistinguishedName -split ",OU=").Count] -join ", OU="
-#//////////////////////////////////////
-    #16.8 Səlahiyyətləri müəyyən edirik
-    $userAccountControl = $user.UserAccountControl
-    $accountStatus = @(
-        if ($userAccountControl -band 2) { "Deaktiv" }
-        if ($userAccountControl -band 16) { "Normal hesab" }
-        if ($userAccountControl -band 512) { "Standart hesab" }
-        if ($userAccountControl -band 2048) { "Parol dəyişdirilməlidir" }
-        if ($userAccountControl -band 65536) { "Şifrə heç vaxt müddəti bitmir" }
-    ) -join ", "
-#//////////////////////////////////////
-    #16.9 Status style
-    $statusHtml = if ($user.Enabled) {
-        "<span class='status-active'>Aktiv</span>"
-    } else {
-        "<span class='status-inactive'>Deaktiv</span>"
+#16.5 Gather group memberships
+$userGroups = $user.MemberOf | ForEach-Object {
+    try {
+        $groupName = (Get-ADGroup $_).Name
+        $groupName
+    } catch {
+        $null
     }
+} | Where-Object { $_ -ne $null }
 #//////////////////////////////////////
-    #16.10 password statusu
+#16.6 Convert group names to a list
+$groupNamesList = $userGroups -join ", "
+#//////////////////////////////////////
+#16.7 Get the Organizational Unit (OU)
+$organizationalUnit = ($user.DistinguishedName -split ",OU=")[1..$($user.DistinguishedName -split ",OU=").Count] -join ", OU="
+#//////////////////////////////////////
+#16.8 Determine the account permissions
+$userAccountControl = $user.UserAccountControl
+$accountStatus = @(
+    if ($userAccountControl -band 2) { "Disabled" }
+    if ($userAccountControl -band 16) { "Normal account" }
+    if ($userAccountControl -band 512) { "Standard account" }
+    if ($userAccountControl -band 2048) { "Password must be changed" }
+    if ($userAccountControl -band 65536) { "Password never expires" }
+) -join ", "
+#//////////////////////////////////////
+#16.9 Status HTML
+$statusHtml = if ($user.Enabled) {
+"<span class='status-active'>Active</span>"
+} else {
+"<span class='status-inactive'>Inactive</span>"
+}
+#//////////////////////////////////////
+#16.10 Password status
 $passwordStatus = Get-PasswordStatus -user $user
 #//////////////////////////////////////
-#16.11 Progress bar-ı yeniləyirik (Mövcud foreach dövrəsində (foreach ($user in $users)) hər 10 istifadəçidən bir əlavə etmək: 
+#16.11 Update the progress bar (Add one every 10 users in the current foreach loop ($users):
     $currentProgress++
 if ($currentProgress % 10 -eq 0) {
     $progressParams.PercentComplete = ($currentProgress / $users.Count) * 100
-    $progressParams.Status = "İstifadəçi emal edilir: $($user.DisplayName)"
+    $progressParams.Status = "Processing user: $($user.DisplayName)"
     Write-Progress @progressParams
 #//////////////////////////////////////
-    #16.12 Progress məlumatlarını temp faylda saxlayırıq
+#16.12 Save progress data in the temporary file
     $progressData = @{
         ProcessedUsers = $currentProgress
-        LastProcessedUser = $user.SamAccountName
+         LastProcessedUser = $user.SamAccountName
     }
     $progressData | Export-Clixml -Path $tempFile
-}#////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-     #17 HTML cədvəlinə istifadəçi məlumatlarını əlavə edirik
-     #<!--İstifadəçi sətri (Bu sətir hər bir istifadəçi üçün əsas məlumatları göstərir.onclick eventi ilə istifadəçi detallarını açıb-bağlamaq mümkündür.
-     $htmlContent += @"
-      
-     <tr class="user-row" onclick="toggleUserDetails('$userId')" data-name="$($user.DisplayName)">
+}
+#////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# 17 Add user information to the HTML table
+# <!--User row (This row displays the main information for each user. The onclick event allows to open/close the user details.)
+    $htmlContent += @"
+
+   <tr class="user-row" onclick="toggleUserDetails('$userId')" data-name="$($user.DisplayName)">
       <td style="text-align: center; width: 50px; font-weight: bold;">$userNumber</td>
           <td>$($user.DisplayName)</td>
           <td>$($user.EmailAddress)</td>
@@ -688,102 +681,92 @@ if ($currentProgress % 10 -eq 0) {
            <td class="$($passwordStatus.Class)">$($passwordStatus.Status)</td>
           
       </tr>
-      <tr>
-          <td colspan="7">
-              <div id="$userId" class="user-details">
-                  <div class="detail-grid">
-                      <div class="detail-section">
-                          <h3>$($user.DisplayName) Esas Melumatlar</h3>
-                          <p><span class="detail-label">Istifadeci Adi:</span> $($user.SamAccountName)</p>
-                          <p><span class="detail-label">Email:</span> $($user.EmailAddress)</p>
-                          <p><span class="detail-label">Tam Ad:</span> $($user.CN)</p>
-                          <p><span class="detail-label">Teshkilat Vahidi (OU):</span> $organizationalUnit</p>
-                      </div>
+<tr>
+   <td colspan="7">
+       <div id="$userId" class="user-details">
+           <div class="detail-grid">
+               <div class="detail-section">
+                   <h3>$($user.DisplayName) Main Information</h3>
+                   <p><span class="detail-label">User Name:</span> $($user.SamAccountName)</p>
+                   <p><span class="detail-label">Email:</span> $($user.EmailAddress)</p>
+                   <p><span class="detail-label">Full Name:</span> $($user.CN)</p>
+                   <p><span class="detail-label">Organizational Unit (OU):</span> $organizationalUnit</p>
+               </div>
+               <div class="detail-section">
+                   <h4>Account Information</h4>
+                   <p><span class="detail-label">Account Status:</span> $accountStatus</p>
+                   <p><span class="detail-label">Last Logon Date:</span> $($user.LastLogonDate)</p>
+                   <p><span class="detail-label">Account Created:</span> $($user.WhenCreated.ToString("dd.MM.yyyy HH:mm:ss"))</p>
+                   <p><span class="detail-label">Password Last Changed:</span> $($user.PasswordLastSet)</p>
+                   <p><span class="detail-label">Account Locked:</span> $(if ($user.LockedOut) { "Yes" } else { "No" })</p>
+               </div>
+               <div class="detail-section">
+                   <h4>Organization Information</h4>
+                   <p><span class="detail-label">Department:</span> $($user.Department)</p>
+                   <p><span class="detail-label">Title:</span> $($user.Title)</p>
+                   <p><span class="detail-label">Phone:</span> $($user.telephoneNumber)</p>
+                   <p><span class="detail-label">Mobile:</span> $($user.mobile)</p>
+               </div>
+               <div class="detail-section">
+                   <h4>Network Information</h4>
+                   <p><span class="detail-label">All Logged-in Computers:</span> $($networkDetails.AllComputers)</p>
+                   <p><span class="detail-label">Shared Folders:</span> $($networkDetails.SharedFolders)</p>
+                   <p><span class="detail-label">Group Memberships:</span> $groupNamesList</p>
+                   <p><span class="detail-label">IP Addresses:</span> $ipAddresses</p>
+               </div>
+           </div>
+       </div>
+   </td>
+</tr>
 
-                      <div class="detail-section">
-                          <h4>Hesab Melumatlari</h4>
-                          <p><span class="detail-label">Hesab Statusu:</span> $accountStatus</p>
-                          <p><span class="detail-label">Son Girish Tarixi:</span> $($user.LastLogonDate)</p>
-                          <p><span class="detail-label">Hesab Yaradilma Tarixi:</span> $($user.WhenCreated.ToString("dd.MM.yyyy HH:mm:ss"))</p>
-                          <p><span class="detail-label">Shifre Son Deyishilme:</span> $($user.PasswordLastSet)</p>
-                          <p><span class="detail-label">Hesab Kilidlenib:</span> $(if ($user.LockedOut) { "Beli" } else { "Xeyr" })</p>
-                      </div>
-
-                      <div class="detail-section">
-                          <h4>Teshkilati Melumatlar</h4>
-                          <p><span class="detail-label">Shobe:</span> $($user.Department)</p>
-                          <p><span class="detail-label">Vezife:</span> $($user.Title)</p>
-                          <p><span class="detail-label">Telefon:</span> $($user.telephoneNumber)</p>
-                          <p><span class="detail-label">Mobil Telefon:</span> $($user.mobile)</p>
-                      </div>
-
-                  
-
-                      </div>
-
-                      <div class="detail-section">
-                          <h4>Shebeke Melumatlari</h4>
-                          <p><span class="detail-label">Butun Girish Etdiyi Komputerler:</span> $($networkDetails.AllComputers)</p>
-                          <p><span class="detail-label">Paylashilan Qovluqlar:</span> $($networkDetails.SharedFolders)</p>
-                          <p><span class="detail-label">Uzv Oldugu Qruplar:</span> $groupNamesList</p>
-                          
-                          <p><span class="detail-label">IP Unvanlari:</span> $ipAddresses</p>
-                      </div>
-
-                   
-                     
-                  </div>
-              </div>
-          </td>
-      </tr>
 "@
 }
 
-#17.1 HTML faylının sonunu əlavə edirik
-<# HTML faylını tamamlayır, statistika məlumatlarını JavaScript vasitəsilə əlavə edir.
-Bu son hissə cədvəli bağlayır və JavaScript vasitəsilə statistika məlumatlarını yeniləyir. 
-Hər bir statistika elementi müvafiq ID-yə malik elementin mətnini yeniləyir.#> 
+# 17.1 Add the end of the HTML file
+<# This final part closes the table and updates the statistics elements using JavaScript.
+Each statistics element updates the text of the corresponding ID element. #>
 $htmlContent += @"
-      </table>
+    </table>
   </div>
   <script>
       document.getElementById('totalUsers').textContent = '$totalUsers';
       document.getElementById('activeUsers').textContent = '$activeUsers';
       document.getElementById('deactivatedUsers').textContent = '$deactivatedUsers';
       document.getElementById('expiredPasswords').textContent = '$expiredPasswords';
-      document.getElementById('noPasswords').textContent = '$noPasswords';  <!-- Yeni əlavə -->
+      document.getElementById('noPasswords').textContent = '$noPasswords';  
   </script>
 </body>
 </html>
 "@
+
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#18 HTML faylının adını formalaşdırma (Hesabat faylı üçün ad yaradır (tarix və vaxt əlavə edərək))
+#18 Formulate the HTML file name (Creates the name for the report file, adding the date and time)
 $reportDate = (Get-Date).ToString("yyyy-MM-dd_HH-mm-ss")
 $outputPath = "C:\Reports\AD\AD_Users_Comprehensive_Report_$reportDate.html"
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#19 Qovluğun mövcudluğunu yoxlayırıq və lazım olduqda yaradırıq(Hesabatın saxlanacağı qovluğu yoxlayır və lazım olduqda yaradır.)
+#19 Check the existence of the folder and create it if necessary (Checks if the folder to save the report exists and creates it if necessary.)
 $reportFolder = Split-Path $outputPath -Parent
 if (!(Test-Path $reportFolder)) {
-    New-Item -Path $reportFolder -ItemType Directory -Force
+New-Item -Path $reportFolder -ItemType Directory -Force
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#20 Performance məlumatlarını loglamaq (Ümumi icra vaxtını hesablayır və göstərir.)
+#20 Log performance information (Calculates and displays the total execution time.)
 $totalTimer.Stop()
-Write-Host "Umumi icra vaxti: $($totalTimer.Elapsed.TotalSeconds) saniye" -ForegroundColor Cyan
+Write-Host "Total execution time: $($totalTimer.Elapsed.TotalSeconds) seconds" -ForegroundColor Cyan
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#22 Faylı yaradırıq (HTML faylını yaradır və UTF-8 kodlaşdırması ilə saxlayır.)
+#22 Create the file (Creates the HTML file and saves it with UTF-8 encoding.)
 $htmlContent | Out-File -FilePath $outputPath -Encoding UTF8
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#23 HTML faylını brauzerdə açırıq(Yaradılmış hesabat faylını avtomatik olaraq brauzerdə açır.)
+#23 Open the HTML file in the browser (Automatically opens the generated report file in the browser.)
 Start-Process $outputPath
-Write-Host "Hesabat ugurla yaradildi ve brauzerde achildi: $outputPath" -ForegroundColor Green
+Write-Host "Report created successfully and opened in the browser: $outputPath" -ForegroundColor Green
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#24 Müvəqqəti faylları təmizləmək Müvəqqəti faylları silir.
+#24 Clean up temporary files (Deletes the temporary files.)
 if (Test-Path $tempFile) {
-    Remove-Item $tempFile -Force
+Remove-Item $tempFile -Force
 }
 #////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#25 Yaddaşı bir daha təmizləyir.
+#25 Clean up memory again.
 $users = $null
 $htmlContent = $null
 [System.GC]::Collect()
